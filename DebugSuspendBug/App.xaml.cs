@@ -17,19 +17,37 @@ using Windows.UI.Xaml.Navigation;
 
 namespace DebugSuspendBug
 {
+    using System.Diagnostics;
+    using System.Threading;
+    using Windows.UI.Notifications;
+
     /// <summary>
     /// Provides application-specific behavior to supplement the default Application class.
     /// </summary>
     sealed partial class App : Application
     {
+//Timer object.
+        System.Threading.Timer _timer;
+
         /// <summary>
         /// Initializes the singleton application object.  This is the first line of authored code
         /// executed, and as such is the logical equivalent of main() or WinMain().
         /// </summary>
         public App()
         {
+            Microsoft.ApplicationInsights.WindowsAppInitializer.InitializeAsync(
+                Microsoft.ApplicationInsights.WindowsCollectors.Metadata |
+                Microsoft.ApplicationInsights.WindowsCollectors.Session);
             this.InitializeComponent();
             this.Suspending += OnSuspending;
+        }
+
+// A simple toast method.
+        private void Toast(string text)
+        { 
+            var toastXml = ToastNotificationManager.GetTemplateContent(ToastTemplateType.ToastImageAndText04);
+            toastXml.GetElementsByTagName("text")[0].AppendChild(toastXml.CreateTextNode(text));
+            ToastNotificationManager.CreateToastNotifier().Show(new ToastNotification(toastXml));
         }
 
         /// <summary>
@@ -39,6 +57,15 @@ namespace DebugSuspendBug
         /// <param name="e">Details about the launch request and process.</param>
         protected override void OnLaunched(LaunchActivatedEventArgs e)
         {
+//Timer that runs when the app is suspended by the debugger button but not when suspended when run from the start menu.
+            _timer = new Timer(x =>
+            {
+                var s = DateTime.Now.Second.ToString();
+                Toast(s);
+                Debug.WriteLine($"Timer: {s}");
+            }, null,0, 2000);
+
+#region unmodified-code
 #if DEBUG
             if (System.Diagnostics.Debugger.IsAttached)
             {
@@ -77,6 +104,7 @@ namespace DebugSuspendBug
                 // Ensure the current window is active
                 Window.Current.Activate();
             }
+#endregion
         }
 
         /// <summary>
@@ -99,7 +127,8 @@ namespace DebugSuspendBug
         private void OnSuspending(object sender, SuspendingEventArgs e)
         {
             var deferral = e.SuspendingOperation.GetDeferral();
-            //TODO: Save application state and stop any background activity
+//Toast to make it obvious that the app is being suspended
+            Toast("SuspendingNow");
             deferral.Complete();
         }
     }
